@@ -205,6 +205,12 @@ reviews:
         2. No hardcoded credentials or tokens
         3. Verify targets don't execute untrusted scripts from network
         4. Flag shell injection via unquoted variables in recipes
+        HyperFleet pre-commit hooks delegate to gofmt, lint, and go-vet.
+        Their documented hook entrypoints are not a blanket approval of
+        the recipes: inspect changes to these targets, their dependencies,
+        included Makefiles, variables, and invoked scripts for unexpected
+        execution, unverified downloads, or credential access. The hook
+        exception below does not exempt any of that code from review.
 
     - path: "**/{Dockerfile,Containerfile}*"
       instructions: |
@@ -378,23 +384,57 @@ reviews:
       instructions: |
         SUPPLY CHAIN: PRE-COMMIT HOOK SECURITY (CWE-829, CWE-94)
 
-        Pre-commit hooks execute code on developer machines at commit time.
-        Compromised hook repos can harvest credentials or inject backdoors.
-        Reference: tj-actions/changed-files (CVE-2025-30066).
+        Hooks execute host code; SHA pinning is not a sandbox or code-safety
+        guarantee. Reference: tj-actions/changed-files (CVE-2025-30066).
+
+        EXACT SOURCES (no owner-prefix, lookalike, or fork matches):
+        - github.com/leaktk/leaktk
+        - github.com/openshift-hyperfleet/hyperfleet-hooks
+        - github.com/pre-commit/pre-commit-hooks
+        - github.com/pre-commit/mirrors-mypy
+        - github.com/shellcheck-py/shellcheck-py
+        - github.com/astral-sh/ruff-pre-commit
+        Source recognition does not approve every revision or command.
+
+        FROZEN REFS: full 40-character Git SHAs and "# frozen: <tag>" comments
+        for all remote hooks; local/meta hooks have no remote rev. Missing
+        or incorrect comments are metadata defects, not malicious execution.
+        These refs are documented examples, NOT a version allowlist or
+        reviewer remote checks:
+        - LeakTK v0.3.12: c6f5a11329736a8dc1551a84603f117bd9ed498e
+        - HyperFleet v0.3.0: d9aab6d723c9246bd2f63a982bf1d9cf0805b3a4
+          (annotated tag), or 0c42dbf10d4087ac8c788b19b9d29afd7bccdd4a
+          (peeled commit)
+        - pre-commit-hooks v6.0.0: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c
+        Humans/CI resolve SHAs/tags, including other annotated refs; never
+        claim an unperformed remote check.
+        Routine version/SHA bumps preserving the source and hook contract
+        need no central policy change; do not flag an unlisted version alone.
+
+        NARROW SYSTEM-HOOK EXCEPTION:
+        This source/ID/language/entry contract is version-independent
+        (documented in the v0.3.0 example above), ONLY for the exact
+        github.com/openshift-hyperfleet/hyperfleet-hooks source:
+        - hyperfleet-gofmt -> system -> make gofmt
+        - hyperfleet-golangci-lint -> system -> make lint
+        - hyperfleet-go-vet -> system -> make go-vet
+        No finding solely for these sources/entries or language: system.
+        Review visible revisions and consumer overrides/args; local ID
+        spoofing, other sources, altered commands/args and script hooks
+        are not covered. Unavailable remote refs/manifests warrant at most
+        a non-blocking informational note, never Critical on that basis.
+        Retain Makefile security checks on recipes, transitive targets,
+        includes, variables and scripts; human review and CI still apply.
+        New sources or changes to the exception contract require a policy
+        PR before rollout; version-only bumps do not. No automatic approval.
 
         FLAG AS CRITICAL:
-        1. Hooks from untrusted repositories not on the trusted list.
-           Trusted sources:
-           github.com/pre-commit, github.com/golangci,
-           github.com/rhysd, github.com/google,
-           github.com/gitleaks, github.com/norwoodj,
-           github.com/igorshubovych, github.com/dnephin,
-           github.com/doublify, github.com/shellcheck-py,
-           github.com/astral-sh, github.com/adrienverge
-        2. Branch-pinned revisions (rev: main, rev: master) instead of
-           tag or SHA. For UNTRUSTED repos: only SHA-pinning is safe.
-           For TRUSTED repos: tag-pinning (rev: v5.0.0) is acceptable
-        3. "language: system" hooks executing arbitrary shell commands
+        1. Remote hook sources outside the exact repository list above
+        2. Tags, branches or abbreviated SHAs as remote revs, even for
+           trusted sources; a frozen comment does not make a mutable rev safe
+        3. "language: system" hooks executing arbitrary shell commands,
+           outside the documented exception; unexpected IDs/entries/args
+           are not authorized by an allowlisted source
         4. "language: script" hooks running arbitrary scripts
         5. "entry" fields with suspicious commands: curl, wget, nc,
            base64, python -c, bash -c, sh -c, or pipes to shell
